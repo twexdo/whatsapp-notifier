@@ -4,33 +4,7 @@ import { createInterface } from 'node:readline';
 import { sendNotification } from './sendNotification.js';
 
 const acceptedLoginPattern = /^Accepted \S+ for (\S+) from (\S+)(?:\s|$)/;
-const failedLoginPattern = /^Failed (\S+) for (?:invalid user )?(\S+) from (\S+)(?:\s|$)/;
-const otherLoginAttemptPatterns = [
-  /^Invalid user (\S+) from (\S+)(?:\s|$)/,
-  /^(?:Connection (?:closed|reset) by|Disconnected from) authenticating user (\S+) (\S+)(?:\s|$)/,
-];
-
-type LoginAttempt = { user: string; remoteHost: string; authMethod?: string };
-
-function getLoginAttempt(line: string): LoginAttempt | undefined {
-  const failedLoginMatch = line.match(failedLoginPattern);
-  if (failedLoginMatch) {
-    return {
-      authMethod: failedLoginMatch[1],
-      user: failedLoginMatch[2],
-      remoteHost: failedLoginMatch[3],
-    };
-  }
-
-  for (const pattern of otherLoginAttemptPatterns) {
-    const match = line.match(pattern);
-    if (match) {
-      return { user: match[1], remoteHost: match[2] };
-    }
-  }
-
-  return undefined;
-}
+const fail2banBanPattern = /\b(?:NOTICE\s+)?\[([^\]]+)\]\s+Ban\s+(\S+)(?:\s|$)/;
 
 async function getIpLocation(ip: string): Promise<string | undefined> {
   if (!isIP(ip)) {
@@ -87,7 +61,13 @@ export function startSshLoginWatcher(): void {
 
     const child = spawn(
       'journalctl',
-      ['--follow', '--lines=0', '--unit=sshd.service', '--output=cat'],
+      [
+        '--follow',
+        '--lines=0',
+        '--unit=sshd.service',
+        '--unit=fail2ban.service',
+        '--output=cat',
+      ],
       { stdio: ['ignore', 'pipe', 'pipe'] },
     );
     journalProcess = child;
@@ -95,12 +75,15 @@ export function startSshLoginWatcher(): void {
     if (child.stdout) {
       const lines = createInterface({ input: child.stdout });
       lines.on('line', (line) => {
-        const loginAttempt = getLoginAttempt(line);
+        const banMatch = line.match(fail2banBanPattern);
 
-        if (loginAttempt) {
-          const method = loginAttempt.authMethod ? ` via ${loginAttempt.authMethod}` : '';
-          const message = `SECURITY: SSH login attempt for ${loginAttempt.user}${method} from ${loginAttempt.remoteHost}`;
-          sendLoginNotification(message, loginAttempt.remoteHost, 'SSH login attempt');
+        if (banMatch) {
+          const [, jail, remoteHost] = banMatch;
+          sendLoginNotification(
+            `SECURITY: Fail2ban banned ${remoteHost} in ${jail}`,
+            remoteHost,
+            'Fail2ban ban',
+          );
           return;
         }
 
