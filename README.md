@@ -34,6 +34,22 @@ npm run dev
 
 Each time the server starts, it sends `The WhatsApp notifier has started.` to `PHONE`.
 
+### Run with Podman
+
+Install Podman and a Compose provider, create `.env` as described above, then run:
+
+```sh
+podman compose up --build -d
+```
+
+The container publishes `PORT` (default `3000`) and mounts the host journal read-only so the SSH login watcher can use `journalctl`. On Fedora, add the host account running rootless Podman to `systemd-journal` and start a new login session:
+
+```sh
+sudo usermod -aG systemd-journal "$USER"
+```
+
+If the host stores its journal under `/var/log/journal`, set `JOURNAL_DIR=/var/log/journal` in `.env`. Follow output with `podman compose logs -f` and stop the service with `podman compose down`.
+
 Meta must reach the server over HTTPS. During local development, expose port `3000` through an HTTPS tunnel and use its public URL plus `/webhook` as the Meta callback URL. Use the same value from `WHATSAPP_VERIFY_TOKEN` in Meta's Verify token field.
 
 Incoming messages arrive at `POST /webhook` and receive `HELLO WORLD` through the configured `PHONE`. Application jobs can send an outgoing message to `PHONE` by importing the single sender function:
