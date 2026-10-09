@@ -42,13 +42,13 @@ Install Podman and a Compose provider, create `.env` as described above, then ru
 podman compose up --build -d
 ```
 
-The container publishes `PORT` (default `3000`) and mounts the host journal read-only so the SSH login watcher can use `journalctl`. On Fedora, add the host account running rootless Podman to `systemd-journal` and start a new login session:
+The container publishes `PORT` (default `3000`) and mounts `/var/log/journal` read-only so the SSH login watcher can use `journalctl`. On Fedora, the Compose configuration disables SELinux labeling for this container because the default policy blocks journal access. This disables SELinux separation for the container; it still runs rootless and the journal mount is read-only. Add the host account running rootless Podman to `systemd-journal` and start a new login session:
 
 ```sh
 sudo usermod -aG systemd-journal "$USER"
 ```
 
-If the host stores its journal under `/var/log/journal`, set `JOURNAL_DIR=/var/log/journal` in `.env`. Follow output with `podman compose logs -f` and stop the service with `podman compose down`.
+If the host stores its journal somewhere other than `/var/log/journal`, set `JOURNAL_DIR` to that path in `.env`. Follow output with `podman compose logs -f` and stop the service with `podman compose down`.
 
 Meta must reach the server over HTTPS. During local development, expose port `3000` through an HTTPS tunnel and use its public URL plus `/webhook` as the Meta callback URL. Use the same value from `WHATSAPP_VERIFY_TOKEN` in Meta's Verify token field.
 

@@ -8,9 +8,11 @@ services:
     ports:
       - "${PORT:-3000}:${PORT:-3000}"
     volumes:
-      - "${JOURNAL_DIR:-/run/log/journal}:${JOURNAL_DIR:-/run/log/journal}:ro"
+      - "${JOURNAL_DIR:-/var/log/journal}:${JOURNAL_DIR:-/var/log/journal}:ro"
       - /etc/machine-id:/etc/machine-id:ro
     userns_mode: keep-id
     group_add:
       - keep-groups
+    security_opt:
+      - label=disable
     restart: unless-stopped
