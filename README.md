@@ -62,7 +62,7 @@ await sendNotification('Your notification text');
 
 ## Fedora SSH Login Notifications
 
-While the app is running, it follows `sshd.service` in the system journal and sends `SSH login: <username> from <remote IP>` to `PHONE` for each accepted SSH login. It uses `journalctl --follow`, so no PAM hook or polling interval is needed. Logins that happen while the app is stopped are not reported.
+While the app is running, it follows `sshd.service` in the system journal and sends `SSH login: <username> from <remote IP>` to `PHONE` for each accepted SSH login. Failed or abandoned authentication attempts send `SECURITY: SSH login attempt for <username> [via <method>] from <remote IP>`. For both alerts, it attempts to add the approximate city, region, and country using ipwho.is over HTTPS; the source IP is sent to that third-party service, and location may be unavailable or inaccurate. Failed-attempt logs can identify the authentication method, but never include the password entered. It uses `journalctl --follow`, so no PAM hook or polling interval is needed. Logins and attempts that happen while the app is stopped are not reported.
 
 The account running the app must be able to read the system journal. On Fedora, you can grant access with `sudo usermod -aG systemd-journal <app-user>`, then start a new login session for that account. This group can read system journal entries, not only SSH logs.
 
