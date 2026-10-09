@@ -3,6 +3,22 @@ import { createInterface } from 'node:readline';
 import { sendNotification } from './sendNotification.js';
 
 const acceptedLoginPattern = /^Accepted \S+ for (\S+) from (\S+)(?:\s|$)/;
+const loginAttemptPatterns = [
+  /^Failed \S+ for (?:invalid user )?(\S+) from (\S+)(?:\s|$)/,
+  /^Invalid user (\S+) from (\S+)(?:\s|$)/,
+  /^(?:Connection (?:closed|reset) by|Disconnected from) authenticating user (\S+) (\S+)(?:\s|$)/,
+];
+
+function getLoginAttempt(line: string): { user: string; remoteHost: string } | undefined {
+  for (const pattern of loginAttemptPatterns) {
+    const match = line.match(pattern);
+    if (match) {
+      return { user: match[1], remoteHost: match[2] };
+    }
+  }
+
+  return undefined;
+}
 
 export function startSshLoginWatcher(): void {
   let stopped = false;
@@ -24,6 +40,20 @@ export function startSshLoginWatcher(): void {
     if (child.stdout) {
       const lines = createInterface({ input: child.stdout });
       lines.on('line', (line) => {
+        const loginAttempt = getLoginAttempt(line);
+
+        if (loginAttempt) {
+          const notification = `SECURITY: SSH login attempt for ${loginAttempt.user} from ${loginAttempt.remoteHost}`;
+          console.log(`SSH login attempt detected: ${notification}`);
+
+          void sendNotification(notification)
+            .then(() => console.log('SSH login attempt notification sent'))
+            .catch((error: unknown) =>
+              console.error('Failed to send SSH login attempt notification:', error),
+            );
+          return;
+        }
+
         const match = line.match(acceptedLoginPattern);
 
         if (!match) {
