@@ -15,6 +15,7 @@ Set these values in `.env`:
 WHATSAPP_PHONE_NUMBER_ID=...
 WHATSAPP_ACCESS_TOKEN=...
 WHATSAPP_VERIFY_TOKEN=...
+NOTIFIER_KEY=...
 PHONE=+15551234567
 # Optional, for proactive notifications outside the 24-hour window:
 # WHATSAPP_TEMPLATE_NAME=your_approved_template_name
@@ -22,7 +23,9 @@ PHONE=+15551234567
 PORT=3000
 ```
 
-`PHONE` is the only destination for outgoing messages, in international format. The Phone Number ID and access token are used to send messages. The Verify Token is a secret you choose and enter in Meta's webhook configuration.
+`PHONE` is the only destination for outgoing messages, in international format. The Phone Number ID and access token are used to send messages. The Verify Token is a secret you choose and enter in Meta's webhook configuration. `NOTIFIER_KEY` is the shared secret for `POST /notify`; copy the value from the ignored root `key.txt` into the app's `.env` and Cloudflare Worker secret binding with the same name.
+
+The Cloudflare Worker accepts `GET` and forwards the fixed `hello from worker` message to `https://notifier.twexdo.online/notify` using `Authorization: Bearer ...` and a JSON POST body over HTTPS. The `/notify` route checks the bearer key before sending the requested WhatsApp message.
 
 Without a template, notifications use free-form text and require an active WhatsApp conversation window. For proactive notifications, configure an approved `WHATSAPP_TEMPLATE_NAME` whose body has one text parameter; `WHATSAPP_TEMPLATE_LANGUAGE` defaults to `en_US`.
 

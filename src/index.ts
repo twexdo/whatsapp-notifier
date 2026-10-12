@@ -1,4 +1,5 @@
 import 'dotenv/config';
+import { timingSafeEqual } from 'node:crypto';
 import { serve } from '@hono/node-server';
 import { Hono } from 'hono';
 import { logger } from 'hono/logger';
@@ -27,6 +28,8 @@ const verifyToken = process.env.WHATSAPP_VERIFY_TOKEN;
 if (!verifyToken) {
   throw new Error('Missing environment variable: WHATSAPP_VERIFY_TOKEN');
 }
+
+const notifierKey = process.env.NOTIFIER_KEY;
 
 const port = Number(process.env.PORT ?? 3000);
 const app = new Hono();
@@ -67,6 +70,46 @@ app.use('*', async (context, next) => {
   await next();
 });
 app.use('*', logger());
+
+app.post('/notify', async (context) => {
+  if (!notifierKey) {
+    return context.json({ error: 'Notifier is not configured' }, 503);
+  }
+
+  const authorization = context.req.header('authorization') ?? '';
+  const providedKey = authorization.startsWith('Bearer ')
+    ? authorization.slice('Bearer '.length)
+    : '';
+  const expectedKeyBytes = Buffer.from(notifierKey);
+  const providedKeyBytes = Buffer.from(providedKey);
+
+  if (
+    expectedKeyBytes.length !== providedKeyBytes.length ||
+    !timingSafeEqual(expectedKeyBytes, providedKeyBytes)
+  ) {
+    return context.json({ error: 'Unauthorized' }, 401);
+  }
+
+  let payload: { message?: unknown };
+  try {
+    payload = await context.req.json<{ message?: unknown }>();
+  } catch {
+    return context.json({ error: 'Request body must be valid JSON' }, 400);
+  }
+
+  const message = payload?.message;
+  if (typeof message !== 'string' || message.trim().length === 0) {
+    return context.json({ error: 'A non-empty message is required' }, 400);
+  }
+
+  try {
+    await sendNotification(message);
+    return context.json({ ok: true });
+  } catch (error) {
+    console.error('Failed to send requested notification:', error);
+    return context.json({ error: 'WhatsApp message could not be sent' }, 502);
+  }
+});
 
 app.get('/webhook', (context) => {
   const mode = context.req.query('hub.mode');
